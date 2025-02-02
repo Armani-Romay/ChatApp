@@ -6,24 +6,38 @@ import java.lang.reflect.Array;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Server implements Runnable{
     //list of connections for users
-    private ArrayList<ConnectionHandler> connections;
+    private ArrayList<ConnectionHandler> connections;  //initialize array
+    private ServerSocket server;
+    private boolean done;
+    private ExecutorService pool; //threadpool
+
+    public Server() {
+        connections = new ArrayList<>();
+        done = false;
+    }
 
 
 //    Runnable interface allows the class to be executed concurrently with other runnable classes
     @Override
     public void run() {
         try{
-            ServerSocket server = new ServerSocket(9999);
-            Socket client = server.accept();
+            server = new ServerSocket(9999);
+            pool = Executors.newCachedThreadPool();
 
-            ConnectionHandler handler = new ConnectionHandler(client);
-            connections.add(handler);
+            while (!done){
+                Socket client = server.accept();
+                ConnectionHandler handler = new ConnectionHandler(client);
+                connections.add(handler);
+                pool.execute(handler);
+            }
 
         } catch (IOException e){
-            //TODO: handle
+            shutdown();
         }
     }
     //broadcast message to all users
@@ -32,6 +46,21 @@ public class Server implements Runnable{
             if (ch != null){
                 ch.sendMessage(message);
             }
+        }
+    }
+
+    public void shutdown(){
+        try {
+            done = true;
+            if (!server.isClosed()) {
+                server.close();
+            }
+            for (ConnectionHandler ch : connections){
+                ch.shutdown();
+            }
+        } catch (IOException e) {
+            //ignore
+
         }
     }
 
@@ -64,10 +93,21 @@ public class Server implements Runnable{
                 broadcast(nickname + " joined the chat!");
                 String message;
                 while ((message = in.readLine()) != null){
+                    //command to change nickname
                     if (message.startsWith("/nick ")){
-                        //TODO: handle nickname
+                        //split the message at the whitespace
+                        String[] messageSplit = message.split(" ", 2);
+                        if (messageSplit.length == 2){
+                            broadcast(nickname + "renamed themselves to " + messageSplit[1]);
+                            System.out.println(nickname + "renamed themselves to " + messageSplit[1]);
+                            nickname = messageSplit[1];// new nickname is the second part of the message
+                            out.println("Successfully changed nickname  to " + nickname);
+                        } else{
+                            out.println("No nickname provided.");
+                        }
                     } else if (message.startsWith("/quit ")){
-                        //TODO: quit
+                        broadcast(nickname + " left the chat!");
+                        shutdown();
                     } else{
                         //if there is no known command, then broadcast message to all in chat
                         broadcast(nickname + ": " + message);
@@ -76,13 +116,28 @@ public class Server implements Runnable{
 
 
             } catch (IOException e){
-                //TODO: handle
+                shutdown();
             }
         }
         //function to send message
         public void sendMessage(String message){
             out.println(message);
         }
-    }
 
+        public void shutdown(){
+            try {
+                in.close();
+                out.close();
+                if (!client.isClosed()) {
+                    client.close();
+                }
+            }catch (IOException e){
+                //ignore
+            }
+        }
+    }
+    public static void main(String[] args) {
+        Server server = new Server();
+        server.run();
+    }
 }
