@@ -1,2 +1,2 @@
 # ChatApp
-Chat application using Java
+Command line chat application using Java
