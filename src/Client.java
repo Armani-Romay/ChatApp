@@ -19,14 +19,24 @@ public class Client implements Runnable{
             //get the output and inputs
             out = new PrintWriter(client.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+
+            InputHandler inHandler = new InputHandler();
+            Thread thread = new Thread(inHandler);
+            thread.start();
+
+            String inMessage;
+            while((inMessage = in.readLine()) != null){
+                System.out.println(inMessage);
+            }
         } catch(IOException e){
-            //TODO: handle
+            shutdown();
         }
+
     }
 
     public void shutdown(){
         done = true; // set the program to being done
-        //close all of the inputs and outputs, and close the client
+        //close inputs and outputs, and close the client
         try{
             in.close();
             out.close();
@@ -46,14 +56,22 @@ public class Client implements Runnable{
                 BufferedReader inReader = new BufferedReader(new InputStreamReader(System.in));
                 while (!done){
                     String message = inReader.readLine();
+                    //different recognized commands
                     if (message.equals("/quit")){
                         inReader.close();
                         shutdown();
+                    } else {
+                        out.println(message);
                     }
                 }
             } catch(IOException e){
-                //TODO: handle
+                shutdown();
             }
         }
+    }
+
+    public static void main(String[] args){
+        Client client = new Client();
+        client.run();
     }
 }
